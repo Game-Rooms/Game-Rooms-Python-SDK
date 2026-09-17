@@ -12,13 +12,18 @@ on:
         required: false
         default: "generate-sdk"
         type: string
+      language:
+        description: "Target language/platform for the generated SDK (e.g. typescript, python, csharp)"
+        required: false
+        default: "typescript"
+        type: string
   
   # Lets this workflow be triggered over plain HTTP, e.g.:
   #   curl -X POST \
   #     -H "Accept: application/vnd.github+json" \
   #     -H "Authorization: Bearer <token-with-repo-scope>" \
   #     https://api.github.com/repos/Game-Rooms/Game-Rooms-SDK-Template/dispatches \
-  #     -d '{"event_type":"generate-sdk","client_payload":{"docs_url":"https://.../PROTOCOL.md"}}'
+  #     -d '{"event_type":"generate-sdk","client_payload":{"docs_url":"https://.../PROTOCOL.md","language":"typescript"}}'
   repository_dispatch:
     types: [generate-sdk]
 
@@ -33,6 +38,7 @@ concurrency:
 env:
   DOCS_URL: ${{ github.event.inputs.docs_url || github.event.client_payload.docs_url }}
   TARGET_BRANCH: ${{ github.event.inputs.target_branch || github.event.client_payload.target_branch || 'generate-sdk' }}
+  LANGUAGE: ${{ github.event.inputs.language || github.event.client_payload.language || 'typescript' }}
 
 jobs:
   generate-sdk:
@@ -58,6 +64,7 @@ jobs:
           prompt-file: .github/prompts/generate-sdk.md
           system-prompt: |
             Documentation URL: ${{ env.DOCS_URL }}
+            Target SDK language/platform: ${{ env.LANGUAGE }}
             Repository: ${{ github.repository }}
           output-format: markdown
           output-file: .github/generated-sdk-summary.md

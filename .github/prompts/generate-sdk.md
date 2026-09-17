@@ -14,9 +14,10 @@ into a complete, working SDK inside this repository.
    in the documentation.
 3. Generate or update the SDK source code for this repository so it fully implements the
    documented surface area:
-   - Preserve the existing project layout, language, and tooling conventions found in the repo
-     (package manager, folder structure, linting/build config). Do not introduce a new language
-     or framework unless the repository is empty of any such convention.
+   - Use the "Target SDK language/platform" value supplied in the system context to pick the
+     implementation language. If the repository already contains SDK code, prefer its existing
+     language/tooling conventions (package manager, folder structure, linting/build config) over
+     the requested value and note the discrepancy in your summary instead of switching languages.
    - Create clear, typed models/classes for each documented data type.
    - Implement a client/entry point exposing the documented methods and events.
    - Add concise inline documentation/comments only where the intent isn't obvious from the code.
