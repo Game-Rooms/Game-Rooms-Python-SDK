@@ -226,6 +226,14 @@ class GameRoomsConnection:
             self._listeners.setdefault(event, []).append(callback)
         return callback
 
+    def off(self, event: str, callback: Callable[[Any], None]) -> None:
+        with self._listeners_lock:
+            listeners = self._listeners.get(event, [])
+            if callback in listeners:
+                listeners.remove(callback)
+            if not listeners and event in self._listeners:
+                self._listeners.pop(event, None)
+
     def create_object(self, kind: str, key: str, val: Any, acl: Any = None, **extra: Any) -> None:
         self._require_kind(kind)
         params = {"key": key, "val": val, "acl": acl, **extra}
@@ -245,11 +253,12 @@ class GameRoomsConnection:
     def get_object(self, kind: str, key: str, *, timeout_ms: int | None = None, **extra: Any) -> RoomEntity:
         self._require_kind(kind)
         message = self._request(f"{kind}/get", {"key": key, **extra}, timeout=(timeout_ms / 1000.0) if timeout_ms else None)
+        payload = message.get("result", message)
         current = self.entities.get(key)
         entity = _entity_from_wire(
             kind,
-            message["result"],
-            locked=message["result"].get("locked", current.locked if current else False),
+            payload,
+            locked=payload.get("locked", current.locked if current else False),
             acl=current.acl if current else None,
         )
         self.entities[key] = entity

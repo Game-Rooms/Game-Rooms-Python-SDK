@@ -74,6 +74,16 @@ class ErrorWebSocket(FakeWebSocket):
             return self.recv()
 
 
+class SilentWebSocket(FakeWebSocket):
+    def __init__(self):
+        super().__init__([])
+
+    def recv(self):
+        while not self.closed:
+            time.sleep(0.01)
+        return None
+
+
 class GameRoomsClientTests(unittest.TestCase):
     def test_create_room_posts_expected_payload(self):
         opener = Mock(return_value=FakeHttpResponse({"ok": True, "body": {"host": "example.com", "code": "WXYZ", "token": "0" * 24}}))
@@ -160,6 +170,45 @@ class GameRoomsClientTests(unittest.TestCase):
         self.assertEqual(websocket.sent[0]["opcode"], "number/get")
         self.assertEqual(connected[0]["profile"]["roles"]["player"]["name"], "Eve")
 
+    def test_event_listeners_can_be_removed(self):
+        websocket = FakeWebSocket(
+            [
+                json.dumps(
+                    {
+                        "pc": 3,
+                        "opcode": "client/welcome",
+                        "result": {
+                            "id": 1,
+                            "secret": "secret",
+                            "reconnect": False,
+                            "deviceId": "device",
+                            "entities": {},
+                            "here": {"1": {"id": "1", "roles": {"host": {}}}},
+                            "profile": None,
+                        },
+                    }
+                )
+            ]
+        )
+        client = GameRoomsClient(
+            "https://example.com",
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=lambda *args, **kwargs: websocket,
+        )
+
+        connection = client.connect_as_host("WXYZ")
+        received = []
+
+        def handler(payload):
+            received.append(payload)
+
+        connection.on("client/send", handler)
+        connection.off("client/send", handler)
+        websocket.push(json.dumps({"pc": 4, "opcode": "client/send", "result": {"ignored": True}}))
+        time.sleep(0.05)
+
+        self.assertEqual(received, [])
+
     def test_get_object_times_out_when_server_never_replies(self):
         websocket = FakeWebSocket(
             [
@@ -190,6 +239,19 @@ class GameRoomsClientTests(unittest.TestCase):
 
         with self.assertRaises(RequestTimeoutError):
             connection.get_object("number", "missing", timeout_ms=10)
+
+    def test_connect_times_out_when_welcome_never_arrives(self):
+        websocket = SilentWebSocket()
+        client = GameRoomsClient(
+            "https://example.com",
+            timeout=0.05,
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=lambda *args, **kwargs: websocket,
+        )
+
+        with self.assertRaises(RequestTimeoutError):
+            client.connect_as_host("WXYZ")
+        self.assertTrue(websocket.closed)
 
     def test_get_audience_uses_documented_opcode(self):
         def send_hook(message, socket):
