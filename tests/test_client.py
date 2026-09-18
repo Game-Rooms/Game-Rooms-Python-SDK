@@ -1,3 +1,4 @@
+from importlib import metadata
 import json
 import time
 import unittest
@@ -6,7 +7,15 @@ from queue import Empty, Queue
 from unittest.mock import Mock
 from urllib.error import HTTPError
 
-from game_rooms import ConnectionClosedError, GameRoomsClient, RequestTimeoutError, RoomFullError, RoomLockedError, RoomNotFoundError
+from game_rooms import (
+    __version__,
+    ConnectionClosedError,
+    GameRoomsClient,
+    RequestTimeoutError,
+    RoomFullError,
+    RoomLockedError,
+    RoomNotFoundError,
+)
 
 
 class FakeHttpResponse:
@@ -104,6 +113,10 @@ class ClosedBeforeWelcomeWebSocket(FakeWebSocket):
 
 
 class GameRoomsClientTests(unittest.TestCase):
+    def test_package_version_matches_worker_release(self):
+        self.assertEqual(metadata.version("game-rooms"), __version__)
+        self.assertEqual(__version__, "1.0.1")
+
     def test_create_room_posts_expected_payload(self):
         opener = Mock(return_value=FakeHttpResponse({"ok": True, "body": {"host": "example.com", "code": "WXYZ", "token": "0" * 24}}))
         client = GameRoomsClient("https://example.com", opener=opener)
@@ -114,6 +127,17 @@ class GameRoomsClientTests(unittest.TestCase):
         request = opener.call_args.args[0]
         self.assertEqual(request.method, "POST")
         self.assertEqual(json.loads(request.data.decode("utf-8")), {"appId": "my-game", "appTag": "v1.0", "maxPlayers": 8})
+
+    def test_get_app_config_returns_server_url(self):
+        opener = Mock(return_value=FakeHttpResponse({"ok": True, "body": {"settings": {"serverUrl": "example.com"}}}))
+        client = GameRoomsClient("https://example.com", opener=opener)
+
+        app_config = client.get_app_config("my-game")
+
+        self.assertEqual(app_config.server_url, "example.com")
+        request = opener.call_args.args[0]
+        self.assertEqual(request.method, "GET")
+        self.assertEqual(request.full_url, "https://example.com/api/v2/app-configs/my-game")
 
     def test_get_room_info_raises_not_found(self):
         def opener(req, timeout):
@@ -258,6 +282,125 @@ class GameRoomsClientTests(unittest.TestCase):
 
         with self.assertRaises(RequestTimeoutError):
             connection.get_object("number", "missing", timeout_ms=10)
+
+    def test_host_object_helpers_track_local_state_and_versions(self):
+        def send_hook(message, socket):
+            socket.push(json.dumps({"pc": 4, "opcode": "ok", "result": {}, "re": message["seq"]}))
+
+        websocket = FakeWebSocket(
+            [
+                json.dumps(
+                    {
+                        "pc": 3,
+                        "opcode": "client/welcome",
+                        "result": {
+                            "id": 1,
+                            "secret": "secret",
+                            "reconnect": False,
+                            "deviceId": "device",
+                            "entities": {},
+                            "here": {"1": {"id": "1", "roles": {"host": {}}}},
+                            "profile": None,
+                        },
+                    }
+                )
+            ],
+            send_hook=send_hook,
+        )
+        client = GameRoomsClient(
+            "https://example.com",
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=lambda *args, **kwargs: websocket,
+        )
+
+        connection = client.connect_as_host("WXYZ")
+        connection.create_object("number", "score", 10, acl=["reject", "role:player"], min=0)
+        connection.lock("score")
+        connection.update_object("number", "score", 42, max=99)
+        connection.drop("score")
+
+        self.assertEqual(
+            [message["opcode"] for message in websocket.sent],
+            ["number/create", "lock", "number/update", "drop"],
+        )
+        self.assertNotIn("score", connection.entities)
+
+    def test_host_update_clears_local_lock_and_increments_version(self):
+        def send_hook(message, socket):
+            socket.push(json.dumps({"pc": 4, "opcode": "ok", "result": {}, "re": message["seq"]}))
+
+        websocket = FakeWebSocket(
+            [
+                json.dumps(
+                    {
+                        "pc": 3,
+                        "opcode": "client/welcome",
+                        "result": {
+                            "id": 1,
+                            "secret": "secret",
+                            "reconnect": False,
+                            "deviceId": "device",
+                            "entities": {},
+                            "here": {"1": {"id": "1", "roles": {"host": {}}}},
+                            "profile": None,
+                        },
+                    }
+                )
+            ],
+            send_hook=send_hook,
+        )
+        client = GameRoomsClient(
+            "https://example.com",
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=lambda *args, **kwargs: websocket,
+        )
+
+        connection = client.connect_as_host("WXYZ")
+        connection.create_object("number", "score", 10)
+        connection.lock("score")
+        connection.update_object("number", "score", 11)
+
+        self.assertEqual(connection.entities["score"].version, 1)
+        self.assertFalse(connection.entities["score"].locked)
+
+    def test_room_level_helpers_use_documented_opcodes(self):
+        def send_hook(message, socket):
+            socket.push(json.dumps({"pc": 4, "opcode": "ok", "result": {}, "re": message["seq"]}))
+
+        websocket = FakeWebSocket(
+            [
+                json.dumps(
+                    {
+                        "pc": 3,
+                        "opcode": "client/welcome",
+                        "result": {
+                            "id": 1,
+                            "secret": "secret",
+                            "reconnect": False,
+                            "deviceId": "device",
+                            "entities": {},
+                            "here": {"1": {"id": "1", "roles": {"host": {}}}},
+                            "profile": None,
+                        },
+                    }
+                )
+            ],
+            send_hook=send_hook,
+        )
+        client = GameRoomsClient(
+            "https://example.com",
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=lambda *args, **kwargs: websocket,
+        )
+
+        connection = client.connect_as_host("WXYZ")
+        connection.lock_room()
+        connection.exit_room()
+
+        self.assertEqual(
+            [message["opcode"] for message in websocket.sent],
+            ["room/lock", "room/exit"],
+        )
 
     def test_connect_times_out_when_welcome_never_arrives(self):
         websocket = SilentWebSocket()

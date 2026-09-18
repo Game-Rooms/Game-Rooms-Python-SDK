@@ -3,7 +3,7 @@ from setuptools import find_packages, setup
 
 setup(
     name="game-rooms",
-    version="1.0.0",
+    version="1.0.1",
     description="Python SDK for the Game Rooms Worker protocol",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
