@@ -354,6 +354,44 @@ class GameRoomsClientTests(unittest.TestCase):
             "wss://example.com/worker/api/v2/rooms/WXYZ/ws?role=host",
         )
 
+    def test_connect_as_player_preserves_base_path_and_encodes_name(self):
+        websocket = FakeWebSocket(
+            [
+                json.dumps(
+                    {
+                        "pc": 3,
+                        "opcode": "client/welcome",
+                        "result": {
+                            "id": 2,
+                            "name": "Bob Smith",
+                            "secret": "secret",
+                            "reconnect": False,
+                            "deviceId": "device",
+                            "entities": {},
+                            "here": {
+                                "1": {"id": "1", "roles": {"host": {}}},
+                                "2": {"id": "2", "roles": {"player": {"name": "Bob Smith"}}},
+                            },
+                            "profile": {"id": 2, "roles": {"player": {"name": "Bob Smith"}}},
+                        },
+                    }
+                )
+            ]
+        )
+        websocket_factory = Mock(return_value=websocket)
+        client = GameRoomsClient(
+            "https://example.com/worker",
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=websocket_factory,
+        )
+
+        client.connect_as_player("WXYZ", name="Bob Smith")
+
+        self.assertEqual(
+            websocket_factory.call_args.args[0],
+            "wss://example.com/worker/api/v2/rooms/WXYZ/ws?role=player&name=Bob+Smith",
+        )
+
     def test_reader_error_emits_events_and_fails_pending_requests(self):
         websocket = ErrorWebSocket(
             [

@@ -65,7 +65,7 @@ class GameRoomsClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self._opener = opener or request.urlopen
-        self._websocket_factory = websocket_factory or create_connection
+        self._websocket_factory = websocket_factory or self._default_websocket_factory
 
     def create_room(self, app_id: str = "", app_tag: str = "", max_players: int = 0) -> CreateRoomResponse:
         body = self._request_json(
@@ -148,7 +148,7 @@ class GameRoomsClient:
     def _connect(self, code: str, role: str, *, name: str | None = None) -> "GameRoomsConnection":
         ws_url = self._build_ws_url(code, role, name=name)
         try:
-            websocket = self._websocket_factory(ws_url, timeout=self.timeout, enable_multithread=True)
+            websocket = self._websocket_factory(ws_url, timeout=self.timeout)
         except WebSocketBadStatusException as exc:
             raise self._translate_ws_error(code, role, exc) from exc
         connection = GameRoomsConnection(websocket, role=role, timeout=self.timeout)
@@ -186,6 +186,10 @@ class GameRoomsClient:
             if room is not None and room.full:
                 return RoomFullError(code)
         return WebSocketRejectedError(status_code, f"WebSocket connection rejected with status {status_code}.")
+
+    @staticmethod
+    def _default_websocket_factory(url: str, *, timeout: float) -> Any:
+        return create_connection(url, timeout=timeout, enable_multithread=True)
 
 
 class GameRoomsConnection:
