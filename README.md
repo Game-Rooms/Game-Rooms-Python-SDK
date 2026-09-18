@@ -1,6 +1,6 @@
 # Game Rooms Python SDK
 
-Python SDK for the Game Rooms Worker 1.0.0 protocol.
+Python SDK for the Game Rooms Worker 1.0.1 protocol.
 
 ## Installation
 
@@ -54,6 +54,8 @@ The SDK implements:
 - object helpers for `create`, `update`, `get`, `lock`, and `drop`
 - room helpers for `lock_room`, `exit_room`, and `get_audience`
 - player relay support via `send`
+- distinct `RoomNotFoundError`, `RoomLockedError`, and `RoomFullError`
+- terminal close semantics (no protocol-level auto-reconnect)
 
 ## Events
 

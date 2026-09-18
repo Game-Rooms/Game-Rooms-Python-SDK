@@ -1,3 +1,5 @@
+__version__ = "1.0.1"
+
 from .client import GameRoomsClient, GameRoomsConnection
 from .errors import (
     ConnectionClosedError,
@@ -19,6 +21,7 @@ from .models import (
 )
 
 __all__ = [
+    "__version__",
     "AppConfig",
     "ConnectionClosedError",
     "CreateRoomResponse",
