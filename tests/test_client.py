@@ -191,6 +191,42 @@ class GameRoomsClientTests(unittest.TestCase):
         with self.assertRaises(RequestTimeoutError):
             connection.get_object("number", "missing", timeout_ms=10)
 
+    def test_get_audience_uses_documented_opcode(self):
+        def send_hook(message, socket):
+            if message["opcode"] == "room/get-audience":
+                socket.push(json.dumps({"pc": 4, "opcode": "room/get-audience", "result": {"connections": 0}, "re": message["seq"]}))
+
+        websocket = FakeWebSocket(
+            [
+                json.dumps(
+                    {
+                        "pc": 3,
+                        "opcode": "client/welcome",
+                        "result": {
+                            "id": 1,
+                            "secret": "secret",
+                            "reconnect": False,
+                            "deviceId": "device",
+                            "entities": {},
+                            "here": {"1": {"id": "1", "roles": {"host": {}}}},
+                            "profile": None,
+                        },
+                    }
+                )
+            ],
+            send_hook=send_hook,
+        )
+        client = GameRoomsClient(
+            "https://example.com",
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=lambda *args, **kwargs: websocket,
+        )
+
+        connection = client.connect_as_host("WXYZ")
+
+        self.assertEqual(connection.get_audience(), 0)
+        self.assertEqual(websocket.sent[0]["opcode"], "room/get-audience")
+
     def test_connect_uses_base_path_prefix_for_websocket_url(self):
         websocket = FakeWebSocket(
             [
@@ -262,6 +298,40 @@ class GameRoomsClientTests(unittest.TestCase):
 
         self.assertEqual(str(errors[0]), "boom")
         self.assertEqual(str(closes[0]), "boom")
+
+    def test_client_send_event_is_emitted(self):
+        websocket = FakeWebSocket(
+            [
+                json.dumps(
+                    {
+                        "pc": 3,
+                        "opcode": "client/welcome",
+                        "result": {
+                            "id": 1,
+                            "secret": "secret",
+                            "reconnect": False,
+                            "deviceId": "device",
+                            "entities": {},
+                            "here": {"1": {"id": "1", "roles": {"host": {}}}},
+                            "profile": None,
+                        },
+                    }
+                )
+            ]
+        )
+        client = GameRoomsClient(
+            "https://example.com",
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=lambda *args, **kwargs: websocket,
+        )
+
+        connection = client.connect_as_host("WXYZ")
+        received = []
+        connection.on("client/send", received.append)
+        websocket.push(json.dumps({"pc": 4, "opcode": "client/send", "result": {"hello": "world"}}))
+        time.sleep(0.05)
+
+        self.assertEqual(received, [{"hello": "world"}])
 
     @staticmethod
     def _room_info_body(locked=False, full=False):

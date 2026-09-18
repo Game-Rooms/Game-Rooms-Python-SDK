@@ -359,6 +359,9 @@ class GameRoomsConnection:
             self.here[entry.id] = entry
             self._emit(opcode, result)
             return
+        if opcode == "client/send":
+            self._emit(opcode, result)
+            return
         if opcode == "lock":
             key = result.get("key")
             if key in self.entities:
