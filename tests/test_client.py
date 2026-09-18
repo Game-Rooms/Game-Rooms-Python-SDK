@@ -1,3 +1,4 @@
+from importlib import metadata
 import json
 import time
 import unittest
@@ -113,6 +114,7 @@ class ClosedBeforeWelcomeWebSocket(FakeWebSocket):
 
 class GameRoomsClientTests(unittest.TestCase):
     def test_package_version_matches_worker_release(self):
+        self.assertEqual(metadata.version("game-rooms"), __version__)
         self.assertEqual(__version__, "1.0.1")
 
     def test_create_room_posts_expected_payload(self):
