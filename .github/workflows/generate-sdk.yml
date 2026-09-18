@@ -4,6 +4,10 @@ name: Generate SDK from Game Rooms Release
 # generation task and assigning it to GitHub's built-in Copilot coding agent. The agent
 # runs in GitHub's cloud (not on an Actions runner) and opens a pull request when done.
 #
+# This workflow is meant to live in repositories CREATED FROM this template (e.g. a
+# per-language SDK repo), not in the template repository itself. It always targets the
+# repository it is running in via ${{ github.repository }} - never a hardcoded name.
+#
 # Trigger contract (repository_dispatch from Game-Rooms/Game-Rooms-Worker):
 #   event_type: game-rooms-release
 #   client_payload:
@@ -64,19 +68,22 @@ jobs:
           ISSUE_BODY="$(printf '%s\n\nDocumentation URL: %s\nTarget SDK language/platform: %s\nGame Rooms Worker version: %s\n' \
             "$PROMPT_BODY" "$DOCS_URL" "$LANGUAGE" "$VERSION")"
 
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          REPO="${GITHUB_REPOSITORY##*/}"
+
           REPO_ID="$(gh api graphql -f query='
-            query { repository(owner: "Game-Rooms", name: "Game-Rooms-SDK-Template") { id } }
-          ' --jq '.data.repository.id')"
+            query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { id } }
+          ' -f owner="$OWNER" -f name="$REPO" --jq '.data.repository.id')"
 
           BOT_ID="$(gh api graphql -f query='
-            query {
-              repository(owner: "Game-Rooms", name: "Game-Rooms-SDK-Template") {
+            query($owner: String!, $name: String!) {
+              repository(owner: $owner, name: $name) {
                 suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 20) {
                   nodes { login ... on Bot { id } }
                 }
               }
             }
-          ' --jq '.data.repository.suggestedActors.nodes[] | select(.login == "copilot-swe-agent") | .id')"
+          ' -f owner="$OWNER" -f name="$REPO" --jq '.data.repository.suggestedActors.nodes[] | select(.login == "copilot-swe-agent") | .id')"
 
           if [ -z "$BOT_ID" ]; then
             echo "::error::copilot-swe-agent is not assignable in this repository (coding agent may be disabled)"

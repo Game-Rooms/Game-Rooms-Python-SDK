@@ -1,9 +1,10 @@
 # SDK Generation Prompt
 
-You are working inside the **Game-Rooms-SDK-Template** repository, which serves as a
-starting point for auto-generated Game Rooms SDKs. Your job is to read the API/service
-documentation at the URL supplied via the `Documentation URL` system context and turn it
-into a complete, working SDK inside this repository.
+You are working inside a Game Rooms SDK repository generated from the
+**Game-Rooms-SDK-Template** template, which serves as a starting point for auto-generated
+Game Rooms SDKs. Your job is to read the API/service documentation at the URL supplied via
+the `Documentation URL` system context and turn it into a complete, working SDK inside this
+repository.
 
 ## Steps
 
