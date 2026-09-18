@@ -54,4 +54,14 @@ The SDK implements:
 - object helpers for `create`, `update`, `get`, `lock`, and `drop`
 - room helpers for `lock_room`, `exit_room`, and `get_audience`
 - player relay support via `send`
-- event handlers for `object`, `text`, `number`, `lock`, `client/connected`, `client/send`, `close`, and `error`
+
+## Events
+
+Use `connection.on(event_name, callback)` with these exact event names:
+
+- `"object"`, `"text"`, `"number"` → callback receives a `RoomEntity`
+- `"lock"` → callback receives the raw lock payload, e.g. `{"key": "score", "from": 2}`
+- `"client/connected"` → callback receives the raw protocol payload for the joined player
+- `"client/send"` → callback receives the relayed JSON payload sent by a player
+- `"close"` → callback receives the close exception object, or `None` on a clean reader shutdown
+- `"error"` → callback receives the raised exception object

@@ -276,7 +276,8 @@ class GameRoomsConnection:
 
     def get_audience(self) -> int:
         message = self._request("room/get-audience", {})
-        return int(message["result"].get("connections", 0))
+        payload = message.get("result", message)
+        return int(payload.get("connections", 0))
 
     def close(self) -> None:
         if self._closed_event.is_set():

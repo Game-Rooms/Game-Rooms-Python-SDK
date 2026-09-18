@@ -227,6 +227,37 @@ class GameRoomsClientTests(unittest.TestCase):
         self.assertEqual(connection.get_audience(), 0)
         self.assertEqual(websocket.sent[0]["opcode"], "room/get-audience")
 
+    def test_get_audience_accepts_direct_payload_shape(self):
+        websocket = FakeWebSocket(
+            [
+                json.dumps(
+                    {
+                        "pc": 3,
+                        "opcode": "client/welcome",
+                        "result": {
+                            "id": 1,
+                            "secret": "secret",
+                            "reconnect": False,
+                            "deviceId": "device",
+                            "entities": {},
+                            "here": {"1": {"id": "1", "roles": {"host": {}}}},
+                            "profile": None,
+                        },
+                    }
+                )
+            ]
+        )
+        client = GameRoomsClient(
+            "https://example.com",
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=lambda *args, **kwargs: websocket,
+        )
+
+        connection = client.connect_as_host("WXYZ")
+        connection._request = Mock(return_value={"connections": 0})
+
+        self.assertEqual(connection.get_audience(), 0)
+
     def test_connect_uses_base_path_prefix_for_websocket_url(self):
         websocket = FakeWebSocket(
             [
