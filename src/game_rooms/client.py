@@ -221,6 +221,10 @@ class GameRoomsConnection:
 
     def await_welcome(self, timeout: float | None = None) -> WelcomeState:
         if not self._welcome_event.wait(timeout):
+            if self._close_error is not None:
+                raise self._close_error
+            if self._closed_event.is_set():
+                raise ConnectionClosedError("Connection closed before client/welcome.")
             self.close()
             raise RequestTimeoutError("Timed out waiting for client/welcome.")
         assert self.welcome is not None

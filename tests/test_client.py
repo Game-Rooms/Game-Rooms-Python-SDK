@@ -95,6 +95,14 @@ class CloseOnSendWebSocket(FakeWebSocket):
         Thread(target=self.connection.close).start()
 
 
+class ClosedBeforeWelcomeWebSocket(FakeWebSocket):
+    def __init__(self):
+        super().__init__([])
+
+    def recv(self):
+        return None
+
+
 class GameRoomsClientTests(unittest.TestCase):
     def test_create_room_posts_expected_payload(self):
         opener = Mock(return_value=FakeHttpResponse({"ok": True, "body": {"host": "example.com", "code": "WXYZ", "token": "0" * 24}}))
@@ -263,6 +271,18 @@ class GameRoomsClientTests(unittest.TestCase):
         with self.assertRaises(RequestTimeoutError):
             client.connect_as_host("WXYZ")
         self.assertTrue(websocket.closed)
+
+    def test_connect_raises_close_error_when_socket_ends_before_welcome(self):
+        websocket = ClosedBeforeWelcomeWebSocket()
+        client = GameRoomsClient(
+            "https://example.com",
+            timeout=0.05,
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=lambda *args, **kwargs: websocket,
+        )
+
+        with self.assertRaises(ConnectionClosedError):
+            client.connect_as_host("WXYZ")
 
     def test_manual_close_fails_pending_requests_with_closed_error(self):
         websocket = CloseOnSendWebSocket(

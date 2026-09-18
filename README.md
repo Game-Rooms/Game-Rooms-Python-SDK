@@ -41,7 +41,7 @@ try:
         print(score.val)
         player.send({"action": "ready"})
 except RequestTimeoutError:
-    print("The object was not readable or did not exist.")
+    print("Timed out waiting for the server to reply.")
 ```
 
 ## Surface area
