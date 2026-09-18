@@ -306,13 +306,13 @@ class GameRoomsConnection:
         finally:
             self._fail_pending(ConnectionClosedError("Connection closed."))
 
-    def _request(self, opcode: str, params: Any | None = None, *, timeout: float | None = None) -> dict[str, Any]:
+    def _request(self, opcode: str, params: Any = _UNSET, *, timeout: float | None = None) -> dict[str, Any]:
         seq = self._next_seq()
         queue: Queue[Any] = Queue(maxsize=1)
         with self._pending_lock:
             self._pending[seq] = queue
         try:
-            self._websocket.send(json.dumps({"opcode": opcode, "seq": seq, "params": params or {}}))
+            self._websocket.send(json.dumps({"opcode": opcode, "seq": seq, "params": params if params is not _UNSET else {}}))
         except Exception:
             with self._pending_lock:
                 self._pending.pop(seq, None)
