@@ -31,5 +31,9 @@ class WebSocketRejectedError(GameRoomsHttpError):
         super().__init__(status_code, message)
 
 
+class ConnectionClosedError(GameRoomsError):
+    pass
+
+
 class RequestTimeoutError(GameRoomsError):
     pass

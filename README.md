@@ -37,9 +37,9 @@ client = GameRoomsClient("https://your-worker.example.workers.dev")
 
 try:
     with client.connect_as_player("WXYZ", name="Bob") as player:
-        player.update_object("number", "score", 42)
         score = player.get_object("number", "score", timeout_ms=1000)
         print(score.val)
+        player.send({"action": "ready"})
 except RequestTimeoutError:
     print("The object was not readable or did not exist.")
 ```

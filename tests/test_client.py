@@ -1,11 +1,12 @@
 import json
 import time
 import unittest
+from threading import Thread
 from queue import Empty, Queue
 from unittest.mock import Mock
 from urllib.error import HTTPError
 
-from game_rooms import GameRoomsClient, RequestTimeoutError, RoomFullError, RoomLockedError, RoomNotFoundError
+from game_rooms import ConnectionClosedError, GameRoomsClient, RequestTimeoutError, RoomFullError, RoomLockedError, RoomNotFoundError
 
 
 class FakeHttpResponse:
@@ -82,6 +83,16 @@ class SilentWebSocket(FakeWebSocket):
         while not self.closed:
             time.sleep(0.01)
         return None
+
+
+class CloseOnSendWebSocket(FakeWebSocket):
+    def __init__(self, messages):
+        super().__init__(messages)
+        self.connection = None
+
+    def send(self, payload):
+        super().send(payload)
+        Thread(target=self.connection.close).start()
 
 
 class GameRoomsClientTests(unittest.TestCase):
@@ -252,6 +263,38 @@ class GameRoomsClientTests(unittest.TestCase):
         with self.assertRaises(RequestTimeoutError):
             client.connect_as_host("WXYZ")
         self.assertTrue(websocket.closed)
+
+    def test_manual_close_fails_pending_requests_with_closed_error(self):
+        websocket = CloseOnSendWebSocket(
+            [
+                json.dumps(
+                    {
+                        "pc": 3,
+                        "opcode": "client/welcome",
+                        "result": {
+                            "id": 1,
+                            "secret": "secret",
+                            "reconnect": False,
+                            "deviceId": "device",
+                            "entities": {},
+                            "here": {"1": {"id": "1", "roles": {"host": {}}}},
+                            "profile": None,
+                        },
+                    }
+                )
+            ]
+        )
+        client = GameRoomsClient(
+            "https://example.com",
+            opener=Mock(return_value=FakeHttpResponse({"ok": True, "body": self._room_info_body()})),
+            websocket_factory=lambda *args, **kwargs: websocket,
+        )
+
+        connection = client.connect_as_host("WXYZ")
+        websocket.connection = connection
+
+        with self.assertRaises(ConnectionClosedError):
+            connection.get_object("number", "score", timeout_ms=1000)
 
     def test_get_audience_uses_documented_opcode(self):
         def send_hook(message, socket):

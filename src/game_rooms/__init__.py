@@ -1,5 +1,6 @@
 from .client import GameRoomsClient, GameRoomsConnection
 from .errors import (
+    ConnectionClosedError,
     GameRoomsError,
     GameRoomsHttpError,
     RequestTimeoutError,
@@ -19,6 +20,7 @@ from .models import (
 
 __all__ = [
     "AppConfig",
+    "ConnectionClosedError",
     "CreateRoomResponse",
     "GameRoomsClient",
     "GameRoomsConnection",

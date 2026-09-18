@@ -11,6 +11,7 @@ from websocket import WebSocketBadStatusException, WebSocketConnectionClosedExce
 from websocket import create_connection
 
 from .errors import (
+    ConnectionClosedError,
     GameRoomsError,
     GameRoomsHttpError,
     RequestTimeoutError,
@@ -299,7 +300,7 @@ class GameRoomsConnection:
         try:
             self._websocket.close()
         finally:
-            self._fail_pending(WebSocketRejectedError(1000, "Connection closed."))
+            self._fail_pending(ConnectionClosedError("Connection closed."))
 
     def _request(self, opcode: str, params: Any | None = None, *, timeout: float | None = None) -> dict[str, Any]:
         seq = self._next_seq()
@@ -348,7 +349,7 @@ class GameRoomsConnection:
             self._emit("error", exc)
         finally:
             self._closed_event.set()
-            self._fail_pending(self._close_error or WebSocketRejectedError(1000, "Connection closed."))
+            self._fail_pending(self._close_error or ConnectionClosedError("Connection closed."))
             self._emit("close", self._close_error)
 
     def _handle_message(self, message: dict[str, Any]) -> None:
@@ -398,8 +399,16 @@ class GameRoomsConnection:
     def _welcome_from_wire(self, result: dict[str, Any]) -> WelcomeState:
         entities = {}
         for key, entry in result.get("entities", {}).items():
-            kind, payload, state = entry
-            entities[key] = _entity_from_wire(kind, payload, locked=state.get("locked", False))
+            kind = entry[0]
+            payload = entry[1] if len(entry) > 1 else {"key": key, "version": 0}
+            state: dict[str, Any] = {}
+            acl = None
+            for extra in entry[2:]:
+                if isinstance(extra, dict):
+                    state.update(extra)
+                elif acl is None:
+                    acl = extra
+            entities[key] = _entity_from_wire(kind, payload, locked=state.get("locked", False), acl=acl)
         here = {key: _presence_from_wire(value) for key, value in result.get("here", {}).items()}
         profile = _presence_from_wire(result["profile"]) if result.get("profile") else None
         return WelcomeState(
