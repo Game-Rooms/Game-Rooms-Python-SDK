@@ -161,7 +161,8 @@ class GameRoomsClient:
         query = {"role": role}
         if name is not None:
             query["name"] = name
-        path = f"/api/v2/rooms/{parse.quote(code, safe='')}/ws"
+        base_path = parsed.path.rstrip("/")
+        path = f"{base_path}/api/v2/rooms/{parse.quote(code, safe='')}/ws"
         return parse.urlunparse((scheme, parsed.netloc, path, "", parse.urlencode(query), ""))
 
     def _translate_http_error(self, status_code: int, raw_body: str) -> GameRoomsHttpError:
@@ -244,7 +245,13 @@ class GameRoomsConnection:
     def get_object(self, kind: str, key: str, *, timeout_ms: int | None = None, **extra: Any) -> RoomEntity:
         self._require_kind(kind)
         message = self._request(f"{kind}/get", {"key": key, **extra}, timeout=(timeout_ms / 1000.0) if timeout_ms else None)
-        entity = _entity_from_wire(kind, message["result"], locked=self.entities.get(key, RoomEntity(kind, key, None, 0)).locked)
+        current = self.entities.get(key)
+        entity = _entity_from_wire(
+            kind,
+            message["result"],
+            locked=message["result"].get("locked", current.locked if current else False),
+            acl=current.acl if current else None,
+        )
         self.entities[key] = entity
         return entity
 
