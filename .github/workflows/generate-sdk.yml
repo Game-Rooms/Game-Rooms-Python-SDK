@@ -78,7 +78,7 @@ jobs:
           BOT_ID="$(gh api graphql -f query='
             query($owner: String!, $name: String!) {
               repository(owner: $owner, name: $name) {
-                suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 20) {
+                suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 100) {
                   nodes { login ... on Bot { id } }
                 }
               }
@@ -87,6 +87,15 @@ jobs:
 
           if [ -z "$BOT_ID" ]; then
             echo "::error::copilot-swe-agent is not assignable in this repository (coding agent may be disabled)"
+            gh api graphql -f query='
+              query($owner: String!, $name: String!) {
+                repository(owner: $owner, name: $name) {
+                  suggestedActors(capabilities: [CAN_BE_ASSIGNED], first: 20) {
+                    nodes { login }
+                  }
+                }
+              }
+            ' -f owner="$OWNER" -f name="$REPO" --jq '.data.repository.suggestedActors.nodes[].login' || true
             exit 1
           fi
 
